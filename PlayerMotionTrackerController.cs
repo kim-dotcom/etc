@@ -114,20 +114,22 @@ public class PlayerMotionTrackerController : MonoBehaviour
         //initialize base tracker position
         if (controllerType != ControllerTypes.keySimulation)
         {
+            string calibrationData = "";
             if (motionObject1 != null)
             {
                 motionTrackerVerticalBase1 = motionObject1.transform.position.y;
                 motionTrackerHorizontalBase1 = new Vector2 (motionObject1.transform.position.x,
                                                             motionObject1.transform.position.z);
+                calibrationData = motionObject1.transform.position.ToString();
             }
             if (motionObject2 != null)
             {
                 motionTrackerVerticalBase2 = motionObject2.transform.position.y;
                 motionTrackerHorizontalBase2 = new Vector2(motionObject2.transform.position.x,
                                                             motionObject2.transform.position.z);
+                calibrationData += ", " + motionObject2.transform.position.ToString();
             }
-            Debug.Log("Motion controller callibrated at " + motionObject1.transform.position + ", " + 
-                                                            motionObject2.transform.position);
+            Debug.Log("Motion controller callibrated at " + calibrationData);
         }
         else
         {
@@ -144,14 +146,11 @@ public class PlayerMotionTrackerController : MonoBehaviour
             getCameraDirection(playerCamera);
 
             //determine if is indicating movement
-            if (Input.GetKeyDown(keyMovement) && controllerType == ControllerTypes.keySimulation)
-            {
-                isFinishedWithCurrentMovement = false;
-            }
             if ((Input.GetKeyDown(keyMovement) && controllerType == ControllerTypes.keySimulation) ||
                 (getMotionTrackerActivation() && controllerType != ControllerTypes.keySimulation))
             {
-                isIndicatingMovement = true;                
+                isIndicatingMovement = true;
+                isFinishedWithCurrentMovement = false;
             }
             if ((Input.GetKeyUp(keyMovement) && controllerType == ControllerTypes.keySimulation) ||
                 (!getMotionTrackerActivation() && controllerType != ControllerTypes.keySimulation))
@@ -190,43 +189,80 @@ public class PlayerMotionTrackerController : MonoBehaviour
             //vertical movement simply comares the Y axis distance
             if (motionDirection == MotionMovementDirections.vertical)
             {
-                if (motionObject1.transform.position.y >= motionTrackerVerticalBase1 + motionThreshold)
+                if (controllerType == ControllerTypes.motionTrackerSingle)
                 {
-                    trackerBeyondThreshold = MotionTrackerBeyondThreshold.first;
-                }
-                if (controllerType == ControllerTypes.motionTrackerDouble ||
-                    motionObject2.transform.position.y >= motionTrackerVerticalBase2 + motionThreshold)
-                {
-                    if (trackerBeyondThreshold == MotionTrackerBeyondThreshold.first)
+                    if (motionObject1.transform.position.y >= motionTrackerVerticalBase1 + motionThreshold)
                     {
-                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.both;
+                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.first;
                     }
                     else
                     {
-                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.second;
+                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.none;
+                    }
+                }
+                else if (controllerType == ControllerTypes.motionTrackerDouble)
+                {
+                    if (motionObject1.transform.position.y >= motionTrackerVerticalBase1 + motionThreshold)
+                    {
+                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.first;
+                    }
+                    if (motionObject2.transform.position.y >= motionTrackerVerticalBase2 + motionThreshold)
+                    {
+                        if (trackerBeyondThreshold == MotionTrackerBeyondThreshold.first)
+                        {
+                            trackerBeyondThreshold = MotionTrackerBeyondThreshold.both;
+                        }
+                        else
+                        {
+                            trackerBeyondThreshold = MotionTrackerBeyondThreshold.second;
+                        }
+                    }
+                    else
+                    {
+                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.none;
                     }
                 }
             }
             //horizontal movement verifies the X/Z axis pythagorean distance
             else if (motionDirection == MotionMovementDirections.horizontal)
             {
-                if (Vector2.Distance(new Vector2(motionObject1.transform.position.x,motionObject1.transform.position.z),
-                                     motionTrackerHorizontalBase1) >= motionThreshold)
+                if (controllerType == ControllerTypes.motionTrackerSingle)
                 {
-                    trackerBeyondThreshold = MotionTrackerBeyondThreshold.first;
-                }
-                if (controllerType == ControllerTypes.motionTrackerDouble ||
-                    Vector2.Distance(new Vector2(motionObject2.transform.position.x,
-                                                 motionObject2.transform.position.z),
-                                     motionTrackerHorizontalBase2) >= motionThreshold)
-                {
-                    if (trackerBeyondThreshold == MotionTrackerBeyondThreshold.first)
+                    if (Vector2.Distance(new Vector2(motionObject1.transform.position.x,
+                                                     motionObject1.transform.position.z),
+                                         motionTrackerHorizontalBase1) >= motionThreshold)
                     {
-                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.both;
+                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.first;
                     }
                     else
                     {
-                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.second;
+                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.none;
+                    }
+                }
+            else if (controllerType == ControllerTypes.motionTrackerDouble)
+            {
+                    if (Vector2.Distance(new Vector2(motionObject1.transform.position.x,
+                                                     motionObject1.transform.position.z),
+                                         motionTrackerHorizontalBase1) >= motionThreshold)
+                    {
+                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.first;
+                    }
+                    if (Vector2.Distance(new Vector2(motionObject2.transform.position.x,
+                                                     motionObject2.transform.position.z),
+                                         motionTrackerHorizontalBase2) >= motionThreshold)
+                    {
+                        if (trackerBeyondThreshold == MotionTrackerBeyondThreshold.first)
+                        {
+                            trackerBeyondThreshold = MotionTrackerBeyondThreshold.both;
+                        }
+                        else
+                        {
+                            trackerBeyondThreshold = MotionTrackerBeyondThreshold.second;
+                        }
+                    }
+                    else
+                    {
+                        trackerBeyondThreshold = MotionTrackerBeyondThreshold.none;
                     }
                 }
             }
