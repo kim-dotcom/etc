@@ -12,9 +12,11 @@ public class PlayerMotionTrackerController : MonoBehaviour
     private enum MotionTrackerBeyondThreshold {none, first, second, both};
     private enum MotionStates {idle, accelerating, deccelerating, moving};
     //movement speed and potential acceleration
-    [Header("Movement Speed")]
-    [Range(0.0f, 10.0f)]
+    [Header("User movement")]
+    [Range(0.0f, 20.0f)]
     public float movementSpeed;
+    [Range(0.0f, 50.0f)]
+    public float gravity = 9.807f;
     public bool accelerateMovement;
     [Range(0f, 2f)]
     public float accelerateTime;
@@ -39,16 +41,21 @@ public class PlayerMotionTrackerController : MonoBehaviour
     public MotionMovementDirections motionDirection;
     [Range(0.0f, 0.5f)]
     public float motionThreshold;
+    [Range(0.0f, 0.5f)]
+    public float motionDelay = 0.15f;
 
     //auxiliaries
     private bool didInitialize;
     private bool didAccelerrationEnable;
     private bool isIndicatingMovement;
     private bool isFinishedWithCurrentMovement;
+    private bool isMotionTrackerMovementLocked;
     private MotionStates isInMotionState = MotionStates.idle;
     private float timeMoving;
     private float timeAccelerating;
     private float timeDeccelerating;
+    private float timeTillDelay;
+    private float currentAccelerationSpeed;
     //ControllerTypes.motionTrackerDouble -- which leg to go next
     private MotionTrackerOrder nextTrackerOfTwoToMove = MotionTrackerOrder.undetermined;
     private Vector3 CameraForward;
@@ -61,6 +68,7 @@ public class PlayerMotionTrackerController : MonoBehaviour
     private Vector2 motionTrackerHorizontalBase2;
     private MotionTrackerBeyondThreshold trackerBeyondThreshold = MotionTrackerBeyondThreshold.none;
     private Vector3 movementDirection;
+    
 
     void Start()
     {
@@ -143,19 +151,52 @@ public class PlayerMotionTrackerController : MonoBehaviour
         {
             //get the forward coordinates
             //Debug.Log(CameraForward);
-            getCameraDirection(playerCamera);
+            CameraForward = playerCamera.transform.forward;
 
-            //determine if is indicating movement
-            if ((Input.GetKeyDown(keyMovement) && controllerType == ControllerTypes.keySimulation) ||
-                (getMotionTrackerActivation() && controllerType != ControllerTypes.keySimulation))
+            //determine if is indicating movement (keypresses are one-time only)
+            if (controllerType == ControllerTypes.keySimulation)
             {
-                isIndicatingMovement = true;
-                isFinishedWithCurrentMovement = false;
-            }
-            if ((Input.GetKeyUp(keyMovement) && controllerType == ControllerTypes.keySimulation) ||
-                (!getMotionTrackerActivation() && controllerType != ControllerTypes.keySimulation))
+                if (Input.GetKeyDown(keyMovement))
+                {
+                    isIndicatingMovement = true;
+                    isFinishedWithCurrentMovement = false;
+                }
+                if (Input.GetKeyUp(keyMovement))
+                {
+                    isIndicatingMovement = false;
+                }
+            }            
+            //determine if is indicating movement (trackers are continuous)
+            else if (controllerType != ControllerTypes.keySimulation)
             {
-                isIndicatingMovement = false;
+                if (getMotionTrackerActivation() && !isMotionTrackerMovementLocked)
+                {
+                    timeTillDelay += Time.deltaTime;
+                    //execute after the delay
+                    if (timeTillDelay >= motionDelay)
+                    {
+                        if (timeMoving >= motionLimitedTime && motionType == MotionTypes.limitedTime)
+                        {
+                            isIndicatingMovement = true;
+                            isMotionTrackerMovementLocked = true;
+                        }
+                        else
+                        {
+                            isIndicatingMovement = true;
+                            isFinishedWithCurrentMovement = false;
+                        }
+                    }
+                                                        
+                }
+                else if (!getMotionTrackerActivation())
+                {
+                    timeTillDelay = 0f;
+                    isIndicatingMovement = false;                    
+                    if (isMotionTrackerMovementLocked)
+                    {
+                        isMotionTrackerMovementLocked = false;
+                    }
+                }
             }
 
             //get a move on (if any)
@@ -166,12 +207,6 @@ public class PlayerMotionTrackerController : MonoBehaviour
                 getMoving();
             }
         }
-    }
-
-    //simply determine the Z-axis forward direction
-    void getCameraDirection(Camera camera)
-    {
-        CameraForward = camera.transform.forward;
     }
 
     //see if the motion tracked movement interface is currently beyond the motion threshold
@@ -326,10 +361,15 @@ public class PlayerMotionTrackerController : MonoBehaviour
                     }
                 }
             }
-        }        
+        }
+        //do single-controller-related validization
+        else if (controllerType == ControllerTypes.motionTrackerSingle)
+        {
+            //...
+        }
     }
 
-    //determine the current stage of movement
+    //determine the current stage of movement (mostly for acceleration/decceleration smoothing)
     void getMovementStage()
     {
         //to accelerate into moving (with acceleration) or start moving constantly (no acceleration)
@@ -338,13 +378,15 @@ public class PlayerMotionTrackerController : MonoBehaviour
             if (didAccelerrationEnable)
             {
                 isInMotionState = MotionStates.accelerating;
-                timeAccelerating = 0f;
             }
             else
             {
                 isInMotionState = MotionStates.moving;
-                timeMoving = 0f;
             }
+            //cleanup
+            timeAccelerating = 0f;
+            timeMoving = 0f;
+            timeDeccelerating = 0f;
         }
         //to transform from movement acceleration into to a constant pace
         else if (isInMotionState == MotionStates.accelerating && didAccelerrationEnable)
@@ -353,7 +395,6 @@ public class PlayerMotionTrackerController : MonoBehaviour
             if (timeAccelerating >= accelerateTime)
             {
                 isInMotionState = MotionStates.moving;
-                timeAccelerating = 0f;
             }
         }
         //to keep moving at a constant pace
@@ -371,8 +412,7 @@ public class PlayerMotionTrackerController : MonoBehaviour
                 {
                     isInMotionState = MotionStates.idle;
                     isFinishedWithCurrentMovement = true;
-                }
-                timeMoving = 0f;                
+                }             
             }
             else
             {
@@ -385,14 +425,12 @@ public class PlayerMotionTrackerController : MonoBehaviour
             if (didAccelerrationEnable)
             {
                 isInMotionState = MotionStates.deccelerating;
-                timeDeccelerating = 0f;
             }
             else
             {
                 isInMotionState = MotionStates.idle;
                 isFinishedWithCurrentMovement = true;
             }
-            timeMoving = 0f;
         }
         //to stop from decceleration to idle
         else if (isInMotionState == MotionStates.deccelerating && didAccelerrationEnable)
@@ -402,6 +440,9 @@ public class PlayerMotionTrackerController : MonoBehaviour
             {
                 isInMotionState = MotionStates.idle;
                 isFinishedWithCurrentMovement = true;
+                //cleanup
+                timeAccelerating = 0f;
+                timeMoving = 0f;
                 timeDeccelerating = 0f;
             }
         }
@@ -413,11 +454,13 @@ public class PlayerMotionTrackerController : MonoBehaviour
         //acceleration/decceleration speed is linear (for now...)
         if (isInMotionState == MotionStates.accelerating || isInMotionState == MotionStates.deccelerating)
         {
-            float currentAccelerationSpeed = movementSpeed * (accelerateTime / movementSpeed);
-            //if deccelerating, just invert on [0,1] scale
-            if (isInMotionState == MotionStates.deccelerating)
+            if (isInMotionState == MotionStates.accelerating)
             {
-                currentAccelerationSpeed = 1 / currentAccelerationSpeed;
+                currentAccelerationSpeed = movementSpeed * (timeAccelerating / accelerateTime);
+            }
+            else
+            {
+                currentAccelerationSpeed = movementSpeed * (1 - (timeDeccelerating / accelerateTime));
             }
             movementDirection = (CameraForward).normalized * currentAccelerationSpeed;
         }
@@ -431,7 +474,8 @@ public class PlayerMotionTrackerController : MonoBehaviour
             movementDirection = Vector3.zero;
         }
 
-        //"return" the move speed        
+        //"return" the move speed 
+        movementDirection.y -= gravity;
         playerController.Move(movementDirection * Time.deltaTime);
     }
 }
