@@ -1,2 +1,2 @@
 # etc
-fuck off!
+supplementary scripts
