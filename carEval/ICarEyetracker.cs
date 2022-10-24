@@ -12,8 +12,6 @@ using UnityEngine;
 
 public interface ICarEyetracker
 {
-    LayerMask carLayerMask { get; }
-
     GameObject getLookedAtObject();
     Vector3 getLookedFromPosition();
     Vector3 getLookedFromDirection();

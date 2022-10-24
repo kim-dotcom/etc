@@ -11,7 +11,7 @@ using UnityEngine;
 
 public class CarEyetrackerDummy : MonoBehaviour, ICarEyetracker
 {
-    public LayerMask carLayerMask { get; }    
+    [SerializeField] public LayerMask carLayerMask;    
     private Vector3 userPosition;
     private Vector3 userRotation;
     private Vector3 lookedAtCoordiante;
